@@ -1,0 +1,39 @@
+plugins {
+    id 'rhino.library-conventions'
+}
+
+dependencies {
+    // core dependencies
+    compileOnly "org.mozilla:rhino:1.7.15"
+    implementation "com.dylibso.chicory:runtime:0.0.12"
+
+    // test dependencies
+    testImplementation "org.mozilla:rhino:1.7.15"
+}
+
+publishing {
+    publications {
+        rhino(MavenPublication) {
+            from components.java
+            artifacts = [jar, sourceJar, javadocJar]
+            pom {
+                description = "Rhino - Wasm extension"
+                url = "https://github.com/rhino/rhino-wasm"
+                licenses {
+                    license {
+                        name = "Mozilla Public License, Version 2.0"
+                        url = "http://www.mozilla.org/MPL/2.0/index.txt"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git@github.com:rhino/rhino-wasm.git"
+                    developerConnection = "scm:git:git@github.com:rhino/rhino-wasm.git"
+                    url = "git@github.com:rhino/rhino-wasm.git"
+                }
+                organization {
+                    name = "Rhino - Contributors"
+                }
+            }
+        }
+    }
+}
