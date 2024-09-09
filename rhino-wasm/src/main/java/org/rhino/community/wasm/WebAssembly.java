@@ -4,17 +4,12 @@
 
 package org.rhino.community.wasm;
 
-import java.util.ArrayList;
-
 import com.dylibso.chicory.runtime.Instance;
 import com.dylibso.chicory.runtime.Module;
+import com.dylibso.chicory.wasm.types.Value;
+import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.LambdaConstructor;
-import org.mozilla.javascript.LambdaFunction;
-import org.mozilla.javascript.NativeObject;
-import org.mozilla.javascript.NativePromise;
 import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
@@ -30,7 +25,8 @@ public class WebAssembly extends ScriptableObject {
         wasm.setPrototype(getObjectPrototype(scope));
         wasm.setParentScope(scope);
 
-        wasm.defineProperty(scope, "instantiate", 2, WebAssembly::instantiate, DONTENUM, DONTENUM | READONLY);
+        wasm.defineProperty(
+                scope, "instantiate", 2, WebAssembly::instantiate, DONTENUM, DONTENUM | READONLY);
 
         ScriptableObject.defineProperty(scope, WEBASSEMBLY_TAG, wasm, DONTENUM);
         if (sealed) {
@@ -39,7 +35,8 @@ public class WebAssembly extends ScriptableObject {
     }
 
     // WebAssembly.instantiate
-    private static Object instantiate(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private static Object instantiate(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
         // TODO: implement the other constructors
         assert (args.length == 1);
         if (!ScriptRuntime.isObject(thisObj)) {
@@ -64,16 +61,49 @@ public class WebAssembly extends ScriptableObject {
         }
         var wasmModule = com.dylibso.chicory.runtime.Module.builder(bytes).build();
         var wasmInstance = wasmModule.instantiate();
-        var result = new ResultObject(new Module(wasmModule), new Instance(wasmInstance));
-        // TODO: should be in a Promise
-        //        var promise = new NativePromise();
-        //        promise.put(0, scope, new ResultObject(new Module(wasmModule), new Instance(wasmInstance)));
+        var module = new Module(wasmModule);
+        var instance = new Instance(wasmInstance);
+        var result = new ResultObject(module, new Instance(wasmInstance));
+
+        var exports = new Exports(wasmInstance);
+        ScriptableObject.defineProperty(result.instance, "exports", exports, DONTENUM | READONLY);
+        for (var export : wasmModule.exports().keySet()) {
+            exports.defineProperty(
+                    export,
+                    (Callable)
+                            (context, scriptable, scriptable1, objects) -> {
+                                // TODO: this is just a "demo implementation" that only works with
+                                // the "add" function
+                                var op1 = Value.i32((int) objects[0]);
+                                var op2 = Value.i32((int) objects[1]);
+                                var res = wasmInstance.export(export).apply(op1, op2);
+                                return res[0].asInt();
+                            },
+                    DONTENUM | READONLY);
+        }
+
+        ScriptableObject.defineProperty(result, "instance", result.instance, DONTENUM | READONLY);
+        ScriptableObject.defineProperty(result, "module", result.module, DONTENUM | READONLY);
+
         return result;
     }
 
-    public static class ResultObject extends ScriptableObject {
-        private Module module;
-        private Instance instance;
+    private static class Exports extends ScriptableObject {
+        com.dylibso.chicory.runtime.Instance instance;
+
+        public Exports(com.dylibso.chicory.runtime.Instance instance) {
+            this.instance = instance;
+        }
+
+        @Override
+        public String getClassName() {
+            return "WebAssembly.Exports";
+        }
+    }
+
+    private static class ResultObject extends ScriptableObject {
+        Module module;
+        Instance instance;
 
         public ResultObject(Module module, Instance instance) {
             this.module = module;
@@ -116,5 +146,4 @@ public class WebAssembly extends ScriptableObject {
     public String getClassName() {
         return "WebAssembly";
     }
-
 }
